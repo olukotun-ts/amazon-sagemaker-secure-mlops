@@ -78,7 +78,8 @@ jobs:
       - image: cimg/aws:2023.06
     resource_class: small
     environment:
-      STACK_NAME: sm-mlops-core
+      CORE_STACK_NAME: sm-mlops-core
+      DS_STACK_NAME: sm-mlops-env
       ENV_NAME: sm-mlops
       STAGING_OU_ID: ""
       PROD_OU_ID: ""
@@ -94,25 +95,18 @@ jobs:
             aws cloudformation create-stack \
                 --template-url https://s3.$AWS_DEFAULT_REGION.amazonaws.com/$S3_BUCKET_NAME/sagemaker-mlops/core-main.yaml \
                 --region $AWS_DEFAULT_REGION \
-                --stack-name $STACK_NAME  \
+                --stack-name $CORE_STACK_NAME  \
                 --disable-rollback \
                 --capabilities CAPABILITY_NAMED_IAM \
                 --parameters \
-                    ParameterKey=StackSetName,ParameterValue=$STACK_NAME
-      - run:
-          name: Verify stack deployment
-          command: |
-            aws cloudformation describe-stacks \
-              --stack-name $STACK_NAME  \
-              --output table \
-              --query "Stacks[0].Outputs[*].[OutputKey, OutputValue]"
+                    ParameterKey=StackSetName,ParameterValue=$CORE_STACK_NAME
       - run:
           name: Deploy data science environment
           command: |
             aws cloudformation create-stack \
                 --template-url https://s3.$AWS_DEFAULT_REGION.amazonaws.com/$S3_BUCKET_NAME/sagemaker-mlops/env-main.yaml \
                 --region $AWS_DEFAULT_REGION \
-                --stack-name $STACK_NAME \
+                --stack-name $DS_STACK_NAME \
                 --disable-rollback \
                 --capabilities CAPABILITY_NAMED_IAM \
                 --parameters \
@@ -127,13 +121,6 @@ jobs:
                     ParameterKey=StagingAccountList,ParameterValue=$STAGING_ACCOUNTS \
                     ParameterKey=ProductionAccountList,ParameterValue=$PROD_ACCOUNTS \
                     ParameterKey=SetupStackSetExecutionRoleName,ParameterValue=$SETUP_STACKSET_ROLE_NAME
-      - run:
-          name: Verify stack deployment
-          command: |
-            aws cloudformation describe-stacks \
-                --stack-name $STACK_NAME  \
-                --output table \
-                --query "Stacks[0].Outputs[*].[OutputKey, OutputValue]"
             
 workflows:
   build_and_deploy:
@@ -146,4 +133,3 @@ workflows:
       - deploy-stack:
           context: [aws_default]
           requires: [upload-templates]
-
