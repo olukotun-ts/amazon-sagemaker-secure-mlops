@@ -1,0 +1,79 @@
+# @todo:
+#   - Remove Cloudformation files from app repo (amazon-sagemaker-secure-mlops)
+
+version: 2.1
+
+orbs:
+  aws-cli: circleci/aws-cli@4.0.0
+
+jobs:
+  # @todo: Add assertions
+  account-checks:
+    docker:
+      - image: cimg/aws:2023.06
+    resource_class: small
+    steps:
+      - aws-cli/assume_role_with_web_identity:
+          role_arn: $AWS_ROLE_ARN
+      - run:
+          name: Check number of SageMaker domains
+          command: |
+            # There is a limit of one SageMaker domain per region per account.
+            aws sagemaker list-domains
+      - run:
+          name: Check number of VPCs
+          command: |
+            # You must have not more than four VPCs to be able to deploy the solution.
+            aws ec2 describe-vpcs
+      - run: 
+          name: Check if SageMaker Service Catalog Products roles exists
+          command: |
+            # SageMaker uses two execution global roles AmazonSageMakerServiceCatalogProductsLaunchRole and AmazonSageMakerServiceCatalogProductsUseRole.
+            # If any of the roles exists in your AWS account, delete the existing role or roles, otherwise the deployment of the solution might fail or MLOps projects will not operate properly.
+            aws iam get-role --role-name AmazonSageMakerServiceCatalogProductsUseRole &&
+            aws iam get-role --role-name AmazonSageMakerServiceCatalogProductsUseRole
+
+            # @todo:
+            #   - Use if-else block to check each role
+            #   - Automatically delete role if exists?
+            #     - aws iam delete-role --role-name AmazonSageMakerServiceCatalogProductsLaunchRole    
+            #     - What if I want multiple SageMaker instances in same account?
+            # if aws iam get-role --role-name AmazonSageMakerServiceCatalogProductsUseRole >/dev/null 2>&1; then
+            #   echo "AmazonSageMakerServiceCatalogProductsUseRole already exists. Please delete to continue."
+            #   exit 1
+            # else
+            #   echo "AmazonSageMakerServiceCatalogProductsUseRole doesn't exist. OK to continue."
+            #   exit 0
+            # fi
+
+            # if aws iam get-role --role-name AmazonSageMakerServiceCatalogProductsUseRole >/dev/null 2>&1; then
+            #   echo "AmazonSageMakerServiceCatalogProductsUseRole doesn't exist. OK to continue."
+            #   exit 0
+            # else
+            #   echo "AmazonSageMakerServiceCatalogProductsUseRole already exists. Please delete to continue."
+            #   exit 1
+            # fi
+  upload-templates:
+    docker:
+      - image: cimg/aws:2023.06
+    resource_class: medium
+    steps:
+      - checkout
+      - aws-cli/assume_role_with_web_identity:
+          role_arn: $AWS_ROLE_ARN
+      # @todo:
+      #   - automate S3 bucket creation if it does not exist already
+      #   - write bucket name to BASH_ENV
+      - run:
+          name: Package and upload templates
+          command: |
+            make package CFN_BUCKET_NAME=$S3_BUCKET_NAME DEPLOYMENT_REGION=$AWS_DEFAULT_REGION
+            
+workflows:
+  build_and_deploy:
+    jobs:
+      - account-checks:
+          context: [aws_default]
+      - upload-templates:
+          context: [aws_default]
+          # requires: [account-checks]
