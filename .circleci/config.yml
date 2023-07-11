@@ -1,7 +1,7 @@
 # @todo:
-    - Security scan for CloudFormation templates
-        - AWS CloudFormation Guard: https://docs.aws.amazon.com/cfn-guard/latest/ug/what-is-guard.html
-        - Snyk: https://snyk.io/blog/scan-aws-cloudformation-misconfigurations-snyk-iac/
+    # - Security scan for CloudFormation templates
+    #     - AWS CloudFormation Guard: https://docs.aws.amazon.com/cfn-guard/latest/ug/what-is-guard.html
+    #     - Snyk: https://snyk.io/blog/scan-aws-cloudformation-misconfigurations-snyk-iac/
 
 version: 2.1
 
