@@ -693,7 +693,7 @@ Resources:
                   TemplatePath: 'BuildArtifact::aws-vpc.template.yaml'
                   OutputFileName: 'vpc-output.json'
                   ParameterOverrides: !Sub '{
-                      "AvailabilityZones": "${AWS::Region}a,${AWS::Region}b"
+                      "AvailabilityZones": "${AWS::Region}a,${AWS::Region}c"
                     }'
                   TemplateConfiguration: 'BuildArtifact::base-vpc.json'
                 RunOrder: 1

@@ -197,7 +197,7 @@ Resources:
         AvailabilityZones: !Join
           - ','
           - - !Sub '${AWS::Region}a'
-            - !Sub '${AWS::Region}b'
+            - !Sub '${AWS::Region}c'
         NumberOfAZs: '2'
         VPCCIDR: !Ref VPCCIDR
         PrivateSubnet1ACIDR: !Ref PrivateSubnet1ACIDR
