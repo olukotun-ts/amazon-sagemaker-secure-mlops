@@ -139,16 +139,16 @@ jobs:
     steps:
       - aws-cli/assume_role_with_web_identity:
           role_arn: $AWS_ROLE_ARN
-      - run:
-          name: Remove VPC-only access policy from buckets
-          command: |
-            aws s3api delete-bucket-policy --bucket $ENV_NAME-dev-${AWS_DEFAULT_REGION}-${AWS_ACCOUNT_ID}-data
-            aws s3api delete-bucket-policy --bucket $ENV_NAME-dev-${AWS_DEFAULT_REGION}-${AWS_ACCOUNT_ID}-models
-      - run:
-          name: Delete files in data and models S3 buckets
-          command: |
-            aws s3 rm s3://$ENV_NAME-dev-$AWS_DEFAULT_REGION-${AWS_ACCOUNT_ID}-data --recursive
-            aws s3 rm s3://$ENV_NAME-dev-$AWS_DEFAULT_REGION-${AWS_ACCOUNT_ID}-models --recursive
+      # - run:
+      #     name: Remove VPC-only access policy from buckets
+      #     command: |
+      #       aws s3api delete-bucket-policy --bucket $ENV_NAME-dev-${AWS_DEFAULT_REGION}-${AWS_ACCOUNT_ID}-data
+      #       aws s3api delete-bucket-policy --bucket $ENV_NAME-dev-${AWS_DEFAULT_REGION}-${AWS_ACCOUNT_ID}-models
+      # - run:
+      #     name: Delete files in data and models S3 buckets
+      #     command: |
+      #       aws s3 rm s3://$ENV_NAME-dev-$AWS_DEFAULT_REGION-${AWS_ACCOUNT_ID}-data --recursive
+      #       aws s3 rm s3://$ENV_NAME-dev-$AWS_DEFAULT_REGION-${AWS_ACCOUNT_ID}-models --recursive
       - run:
           name: Delete CloudFormation stacks
           command: |
@@ -156,7 +156,7 @@ jobs:
             aws cloudformation wait stack-delete-complete --stack-name sm-mlops-env
             aws cloudformation delete-stack --stack-name sm-mlops-core 
             aws cloudformation wait stack-delete-complete --stack-name sm-mlops-core
-            aws cloudformation delete-stack --stack-name sagemaker-mlops-package-cfn
+            # aws cloudformation delete-stack --stack-name sagemaker-mlops-package-cfn
       - run:
           name: (WIP) Delete EFS
           command: |
