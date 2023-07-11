@@ -1,5 +1,7 @@
 # @todo:
-#   - Remove Cloudformation files from app repo (amazon-sagemaker-secure-mlops)
+    - Security scan for CloudFormation templates
+        - AWS CloudFormation Guard: https://docs.aws.amazon.com/cfn-guard/latest/ug/what-is-guard.html
+        - Snyk: https://snyk.io/blog/scan-aws-cloudformation-misconfigurations-snyk-iac/
 
 version: 2.1
 
@@ -68,6 +70,70 @@ jobs:
           name: Package and upload templates
           command: |
             make package CFN_BUCKET_NAME=$S3_BUCKET_NAME DEPLOYMENT_REGION=$AWS_DEFAULT_REGION
+      - run:
+          name: Verify upload
+          command: aws s3 ls s3://${S3_BUCKET_NAME}/sagemaker-mlops/ --recursive
+  deploy-stack:
+    docker:
+      - image: cimg/aws:2023.06
+    resource_class: small
+    environment:
+      STACK_NAME: sm-mlops-core
+      ENV_NAME: sm-mlops
+      STAGING_OU_ID: ""
+      PROD_OU_ID: ""
+      STAGING_ACCOUNTS: ""
+      PROD_ACCOUNTS: ""
+      SETUP_STACKSET_ROLE_NAME: $ENV_NAME-setup-stackset-execution-role
+    steps:
+      - aws-cli/assume_role_with_web_identity:
+          role_arn: $AWS_ROLE_ARN
+      - run:
+          name: Deploy core infrastructure
+          command: |
+            aws cloudformation create-stack \
+                --template-url https://s3.$AWS_DEFAULT_REGION.amazonaws.com/$S3_BUCKET_NAME/sagemaker-mlops/core-main.yaml \
+                --region $AWS_DEFAULT_REGION \
+                --stack-name $STACK_NAME  \
+                --disable-rollback \
+                --capabilities CAPABILITY_NAMED_IAM \
+                --parameters \
+                    ParameterKey=StackSetName,ParameterValue=$STACK_NAME
+      - run:
+          name: Verify stack deployment
+          command: |
+            aws cloudformation describe-stacks \
+              --stack-name $STACK_NAME  \
+              --output table \
+              --query "Stacks[0].Outputs[*].[OutputKey, OutputValue]"
+      - run:
+          name: Deploy data science environment
+          command: |
+            aws cloudformation create-stack \
+                --template-url https://s3.$AWS_DEFAULT_REGION.amazonaws.com/$S3_BUCKET_NAME/sagemaker-mlops/env-main.yaml \
+                --region $AWS_DEFAULT_REGION \
+                --stack-name $STACK_NAME \
+                --disable-rollback \
+                --capabilities CAPABILITY_NAMED_IAM \
+                --parameters \
+                    ParameterKey=EnvName,ParameterValue=$ENV_NAME \
+                    ParameterKey=EnvType,ParameterValue=dev \
+                    ParameterKey=AvailabilityZones,ParameterValue=${AWS_DEFAULT_REGION}a\\,${AWS_DEFAULT_REGION}b \
+                    ParameterKey=NumberOfAZs,ParameterValue=2 \
+                    ParameterKey=StartKernelGatewayApps,ParameterValue=NO \
+                    ParameterKey=SeedCodeS3BucketName,ParameterValue=$S3_BUCKET_NAME \
+                    ParameterKey=OrganizationalUnitStagingId,ParameterValue=$STAGING_OU_ID \
+                    ParameterKey=OrganizationalUnitProdId,ParameterValue=$PROD_OU_ID \
+                    ParameterKey=StagingAccountList,ParameterValue=$STAGING_ACCOUNTS \
+                    ParameterKey=ProductionAccountList,ParameterValue=$PROD_ACCOUNTS \
+                    ParameterKey=SetupStackSetExecutionRoleName,ParameterValue=$SETUP_STACKSET_ROLE_NAME
+      - run:
+          name: Verify stack deployment
+          command: |
+            aws cloudformation describe-stacks \
+                --stack-name $STACK_NAME  \
+                --output table \
+                --query "Stacks[0].Outputs[*].[OutputKey, OutputValue]"
             
 workflows:
   build_and_deploy:
@@ -77,3 +143,7 @@ workflows:
       - upload-templates:
           context: [aws_default]
           # requires: [account-checks]
+      - deploy-stack:
+          context: [aws_default]
+          requires: [upload-templates]
+
