@@ -66,7 +66,7 @@ jobs:
     resource_class: small
     environment:
       STACK_NAME: cfn-infra
-      ENV_NAME: sm-mlops-env
+      ENV_NAME: sm-mlops
     steps:
       - checkout
       - aws-cli/assume_role_with_web_identity:
@@ -79,15 +79,7 @@ jobs:
                 --stack-name $STACK_NAME  \
                 --parameter-overrides CFNBucketName=$CIRCLE_PROJECT_REPONAME EnvName=$ENV_NAME \
                 --region $AWS_DEFAULT_REGION
-      - run:
-          name: Wait for stack verification -- create
-          command: |
             aws cloudformation wait stack-create-complete --stack-name $STACK_NAME
-          no_output_timeout: 1h
-      - run:
-          name: Wait for stack verification -- update
-          command: |
-            aws cloudformation wait stack-update-complete --stack-name $STACK_NAME
           no_output_timeout: 1h
       - run:
           name: Package and upload templates
@@ -178,11 +170,13 @@ jobs:
       - run:
           name: Delete CloudFormation stacks
           command: |
+            aws cloudformation delete-stack --stack-name cfn-infra
             aws cloudformation delete-stack --stack-name sm-mlops-env
-            aws cloudformation wait stack-delete-complete --stack-name sm-mlops-env
             aws cloudformation delete-stack --stack-name sm-mlops-core 
-            aws cloudformation wait stack-delete-complete --stack-name sm-mlops-core
             # aws cloudformation delete-stack --stack-name sagemaker-mlops-package-cfn
+
+            # aws cloudformation wait stack-delete-complete --stack-name sm-mlops-env
+            # aws cloudformation wait stack-delete-complete --stack-name sm-mlops-core
           no_output_timeout: 1h
       - run:
           name: (WIP) Delete EFS
@@ -209,9 +203,9 @@ workflows:
       # - deploy-ds-stack:
       #     context: [aws_default]
       #     requires: [deploy-core-stack]
-      # - approve-delete:
-      #     type: approval
-      #     requires: [deploy-ds-stack]
-      # - delete-stack:
-      #     context: [aws_default]
-      #     requires: [approve-delete]
+      - approve-delete:
+          type: approval
+          requires: [upload-templates]
+      - delete-stack:
+          context: [aws_default]
+          requires: [approve-delete]
