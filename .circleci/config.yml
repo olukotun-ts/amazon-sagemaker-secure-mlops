@@ -32,34 +32,6 @@ jobs:
           command: |
             # You must have not more than four VPCs to be able to deploy the solution.
             aws ec2 describe-vpcs
-      - run: 
-          name: Check if SageMaker Service Catalog Products roles exists
-          command: |
-            # SageMaker uses two execution global roles AmazonSageMakerServiceCatalogProductsLaunchRole and AmazonSageMakerServiceCatalogProductsUseRole.
-            # If any of the roles exists in your AWS account, delete the existing role or roles, otherwise the deployment of the solution might fail or MLOps projects will not operate properly.
-            aws iam get-role --role-name AmazonSageMakerServiceCatalogProductsUseRole &&
-            aws iam get-role --role-name AmazonSageMakerServiceCatalogProductsUseRole
-
-            # @todo:
-            #   - Use if-else block to check each role
-            #   - Automatically delete role if exists?
-            #     - aws iam delete-role --role-name AmazonSageMakerServiceCatalogProductsLaunchRole    
-            #     - What if I want multiple SageMaker instances in same account?
-            # if aws iam get-role --role-name AmazonSageMakerServiceCatalogProductsUseRole >/dev/null 2>&1; then
-            #   echo "AmazonSageMakerServiceCatalogProductsUseRole already exists. Please delete to continue."
-            #   exit 1
-            # else
-            #   echo "AmazonSageMakerServiceCatalogProductsUseRole doesn't exist. OK to continue."
-            #   exit 0
-            # fi
-
-            # if aws iam get-role --role-name AmazonSageMakerServiceCatalogProductsUseRole >/dev/null 2>&1; then
-            #   echo "AmazonSageMakerServiceCatalogProductsUseRole doesn't exist. OK to continue."
-            #   exit 0
-            # else
-            #   echo "AmazonSageMakerServiceCatalogProductsUseRole already exists. Please delete to continue."
-            #   exit 1
-            # fi
   upload-templates:
     docker:
       - image: cimg/aws:2023.06
@@ -79,7 +51,6 @@ jobs:
                 --stack-name $STACK_NAME  \
                 --parameter-overrides CFNBucketName=$CIRCLE_PROJECT_REPONAME EnvName=$ENV_NAME \
                 --region $AWS_DEFAULT_REGION
-            aws cloudformation wait stack-create-complete --stack-name $STACK_NAME
           no_output_timeout: 1h
       - run:
           name: Package and upload templates
