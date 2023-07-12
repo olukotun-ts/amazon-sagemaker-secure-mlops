@@ -179,12 +179,15 @@ workflows:
       - deploy-core-stack:
           context: [aws_default]
           requires: [upload-templates]
+      - approve-ds-deploy:
+          type: approval
+          requires: [deploy-core-stack]
       - deploy-ds-stack:
           context: [aws_default]
-          requires: [deploy-core-stack]
+          requires: [approve-ds-deploy]
       - approve-delete:
           type: approval
-          requires: [deploy-ds-stack]
+          requires: [deploy-core-stack]
       - delete-stack:
           context: [aws_default]
           requires: [approve-delete]
