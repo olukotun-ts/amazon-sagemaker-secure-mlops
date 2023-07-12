@@ -1,0 +1,85 @@
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: |
+  Create Amazon S3 bucket to hold CloudFormation templates
+
+Outputs:
+  CFNBucketName:
+    Description: Name of the Amazon S3 bucket for data
+    Value: !Ref CFNBucketName
+    Export:
+      Name: !Sub ${EnvName}-${EnvType}-data-bucket-name
+
+Parameters:
+  EnvName:
+    Type: String
+    AllowedPattern: '[a-z0-9\-]*'
+    Description: Please specify your data science environment name.  Used as a suffix for environment resource names.
+
+  EnvType:
+    Description: System Environment (e.g. dev, test, prod). Used as a suffix for environment resource names.
+    Type: String
+    Default: dev
+
+  CFNBucketName:
+    Description: S3 bucket name to store data
+    Type: String
+
+  VPCEndpointS3Id:
+    Description: Id of the S3 VPC endpoint
+    Type: String
+
+  S3BucketKMSKeyId:
+    Description: KMS Key Id for the data and model buckets
+    Type: String
+
+Resources:
+  CFNBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref CFNBucketName
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: TRUE
+        BlockPublicPolicy: TRUE
+        IgnorePublicAcls: TRUE
+        RestrictPublicBuckets: TRUE
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: 'aws:kms'
+              KMSMasterKeyID: !Ref S3BucketKMSKeyId
+      Tags:
+        - Key: EnvironmentName
+          Value: !Ref EnvName
+        - Key: EnvironmentType
+          Value: !Ref EnvType
+ 
+  CFNBucketPolicy:
+    Type: 'AWS::S3::BucketPolicy'
+    Properties:
+      Bucket: !Ref CFNBucket
+      PolicyDocument:
+        Statement:
+          - Action:
+              - 's3:GetObject'
+              - 's3:PutObject'
+              - 's3:ListBucket'
+            Effect: Deny
+            Resource:
+              - !Sub "arn:aws:s3:::${CFNBucket}/*"
+              - !Sub "arn:aws:s3:::${CFNBucket}"
+            Principal: '*'
+            Condition:
+              StringNotEquals:
+                'aws:sourceVpce': !Ref VPCEndpointS3Id #Allow access only via S3 VPC endpoint
+                'aws:PrincipalTag/Principal': 
+                  #Exception for SageMaker pipeline execution role to read evaluation.json using JsonGet
+                  - !Sub '${EnvName}-${EnvType}-sm-pipeline-role' 
+                  #Exception for Feature Store replication to S3 bucket - you might create a dedicated FeatureStore role
+                  - !Sub '${EnvName}-${EnvType}-sm-execution-role' 
+              Bool:
+                #Exception for - #### Check if this exception is needed ####
+                'aws:ViaAWSService': 'false' 

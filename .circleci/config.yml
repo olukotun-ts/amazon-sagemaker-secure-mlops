@@ -3,7 +3,10 @@
     #     - AWS CloudFormation Guard: https://docs.aws.amazon.com/cfn-guard/latest/ug/what-is-guard.html
     #     - Snyk: https://snyk.io/blog/scan-aws-cloudformation-misconfigurations-snyk-iac/
     # - Add bucket creation to CloudFormation template. Can source local file: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-cli-creating-stack.html
-      
+          # - delete as part of teardown
+      # - Why do created roles stay in account after stack deletion?
+          # - delete as part of teardown
+          
 version: 2.1
 
 orbs:
@@ -60,6 +63,8 @@ jobs:
     docker:
       - image: cimg/aws:2023.06
     resource_class: medium
+    environment:
+      STACK_NAME: cfn-infra
     steps:
       - checkout
       - aws-cli/assume_role_with_web_identity:
@@ -68,9 +73,23 @@ jobs:
       #   - automate S3 bucket creation if it does not exist already
       #   - write bucket name to BASH_ENV
       - run:
+          name: Create S3 bucket to hold CloudFormation templates
+          command: |
+            aws cloudformation deploy-stack   \
+                --template-file cfn_templates/cfn-s3.yaml   \
+                --stack-name $STACK_NAME  \
+                --parameter-overrides CFNBucketName=$CIRCLE_PROJECT_REPONAME \
+                --region $AWS_DEFAULT_REGION
+      - run:
+          name: Wait for stack verification
+          command: |
+            aws cloudformation stack-create-complete --stack-name $STACK_NAME ||
+            aws cloudformation stack-update-complete --stack-name $STACK_NAME
+          no_output_timeout: 1h
+      - run:
           name: Package and upload templates
           command: |
-            make package CFN_BUCKET_NAME=$S3_BUCKET_NAME DEPLOYMENT_REGION=$AWS_DEFAULT_REGION
+            make package CFN_BUCKET_NAME=$CIRCLE_PROJECT_REPONAME DEPLOYMENT_REGION=$AWS_DEFAULT_REGION
       - run:
           name: Verify upload
           command: aws s3 ls s3://${S3_BUCKET_NAME}/sagemaker-mlops/ --recursive
@@ -181,15 +200,15 @@ workflows:
       - upload-templates:
           context: [aws_default]
           # requires: [account-checks]
-      - deploy-core-stack:
-          context: [aws_default]
-          requires: [upload-templates]
-      - deploy-ds-stack:
-          context: [aws_default]
-          requires: [deploy-core-stack]
-      - approve-delete:
-          type: approval
-          requires: [deploy-ds-stack]
-      - delete-stack:
-          context: [aws_default]
-          requires: [approve-delete]
+      # - deploy-core-stack:
+      #     context: [aws_default]
+      #     requires: [upload-templates]
+      # - deploy-ds-stack:
+      #     context: [aws_default]
+      #     requires: [deploy-core-stack]
+      # - approve-delete:
+      #     type: approval
+      #     requires: [deploy-ds-stack]
+      # - delete-stack:
+      #     context: [aws_default]
+      #     requires: [approve-delete]
