@@ -27,14 +27,6 @@ Parameters:
     Description: S3 bucket name to store data
     Type: String
 
-  VPCEndpointS3Id:
-    Description: Id of the S3 VPC endpoint
-    Type: String
-
-  S3BucketKMSKeyId:
-    Description: KMS Key Id for the data and model buckets
-    Type: String
-
 Resources:
   CFNBucket:
     Type: AWS::S3::Bucket
@@ -49,37 +41,9 @@ Resources:
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
-              SSEAlgorithm: 'aws:kms'
-              KMSMasterKeyID: !Ref S3BucketKMSKeyId
+              SSEAlgorithm: AES256
       Tags:
         - Key: EnvironmentName
           Value: !Ref EnvName
         - Key: EnvironmentType
           Value: !Ref EnvType
- 
-  CFNBucketPolicy:
-    Type: 'AWS::S3::BucketPolicy'
-    Properties:
-      Bucket: !Ref CFNBucket
-      PolicyDocument:
-        Statement:
-          - Action:
-              - 's3:GetObject'
-              - 's3:PutObject'
-              - 's3:ListBucket'
-            Effect: Deny
-            Resource:
-              - !Sub "arn:aws:s3:::${CFNBucket}/*"
-              - !Sub "arn:aws:s3:::${CFNBucket}"
-            Principal: '*'
-            Condition:
-              StringNotEquals:
-                'aws:sourceVpce': !Ref VPCEndpointS3Id #Allow access only via S3 VPC endpoint
-                'aws:PrincipalTag/Principal': 
-                  #Exception for SageMaker pipeline execution role to read evaluation.json using JsonGet
-                  - !Sub '${EnvName}-${EnvType}-sm-pipeline-role' 
-                  #Exception for Feature Store replication to S3 bucket - you might create a dedicated FeatureStore role
-                  - !Sub '${EnvName}-${EnvType}-sm-execution-role' 
-              Bool:
-                #Exception for - #### Check if this exception is needed ####
-                'aws:ViaAWSService': 'false' 
