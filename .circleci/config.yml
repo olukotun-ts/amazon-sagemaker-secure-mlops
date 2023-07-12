@@ -63,7 +63,7 @@ jobs:
   upload-templates:
     docker:
       - image: cimg/aws:2023.06
-    resource_class: medium
+    resource_class: small
     environment:
       STACK_NAME: cfn-infra
       ENV_NAME: sm-mlops
@@ -82,8 +82,8 @@ jobs:
       - run:
           name: Wait for stack verification
           command: |
-            aws cloudformation stack-create-complete --stack-name $STACK_NAME ||
-            aws cloudformation stack-update-complete --stack-name $STACK_NAME
+            aws cloudformation wait stack-create-complete --stack-name $STACK_NAME ||
+            aws cloudformation wait stack-update-complete --stack-name $STACK_NAME
           no_output_timeout: 1h
       - run:
           name: Package and upload templates
