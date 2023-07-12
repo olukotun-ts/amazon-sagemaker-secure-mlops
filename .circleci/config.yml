@@ -1,12 +1,22 @@
 # @todo:
-    # - Security scan for CloudFormation templates
-    #     - AWS CloudFormation Guard: https://docs.aws.amazon.com/cfn-guard/latest/ug/what-is-guard.html
-    #     - Snyk: https://snyk.io/blog/scan-aws-cloudformation-misconfigurations-snyk-iac/
     # - Add bucket creation to CloudFormation template. Can source local file: https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-cli-creating-stack.html
           # - delete as part of teardown
+    # - Use Lambda to empty bucket before delete
+    #     - https://stackoverflow.com/questions/40383470/can-i-force-cloudformation-to-delete-non-empty-s3-bucket
+    #     - write Lambda function
+    #     - add to template resource:
+    #         EmptyBucketOnDelete:
+    #           Type: Custom::EmptyBucketOnDelete
+    #           Properties:
+    #             ServiceToken:
+    #             BucketName: !Ref CFNBucketName
+    #             OnDelete: true
       # - Why do created roles stay in account after stack deletion?
           # - delete as part of teardown
     # - Create dev IAM user
+    # - Security scan for CloudFormation templates
+    #     - AWS CloudFormation Guard: https://docs.aws.amazon.com/cfn-guard/latest/ug/what-is-guard.html
+    #     - Snyk: https://snyk.io/blog/scan-aws-cloudformation-misconfigurations-snyk-iac/
           
 version: 2.1
 
@@ -58,7 +68,7 @@ jobs:
             make package CFN_BUCKET_NAME=$CIRCLE_PROJECT_REPONAME DEPLOYMENT_REGION=$AWS_DEFAULT_REGION
       - run:
           name: Verify upload
-          command: aws s3 ls s3://${S3_BUCKET_NAME}/sagemaker-mlops/ --recursive
+          command: aws s3 ls s3://$CIRCLE_PROJECT_REPONAME/sagemaker-mlops/ --recursive
   deploy-core-stack:
     docker:
       - image: cimg/aws:2023.06
@@ -71,8 +81,14 @@ jobs:
       - run:
           name: Deploy core infrastructure
           command: |
+            # aws cloudformation deploy   \
+            #     --template-file cfn_templates/core-main.yaml   \
+            #     --stack-name $STACK_NAME  \
+            #     --parameter-overrides StackSetName=$STACK_NAME  \
+            #     --region $AWS_DEFAULT_REGION
+
             aws cloudformation create-stack \
-                --template-url https://s3.$AWS_DEFAULT_REGION.amazonaws.com/$S3_BUCKET_NAME/sagemaker-mlops/core-main.yaml \
+                --template-url https://s3.$AWS_DEFAULT_REGION.amazonaws.com/$CIRCLE_PROJECT_REPONAME/sagemaker-mlops/core-main.yaml \
                 --region $AWS_DEFAULT_REGION \
                 --stack-name $STACK_NAME  \
                 --disable-rollback \
@@ -100,7 +116,7 @@ jobs:
           name: Deploy data science environment
           command: |
             aws cloudformation create-stack \
-                --template-url https://s3.$AWS_DEFAULT_REGION.amazonaws.com/$S3_BUCKET_NAME/sagemaker-mlops/env-main.yaml \
+                --template-url https://s3.$AWS_DEFAULT_REGION.amazonaws.com/$CIRCLE_PROJECT_REPONAME/sagemaker-mlops/env-main.yaml \
                 --region $AWS_DEFAULT_REGION \
                 --stack-name $STACK_NAME \
                 --disable-rollback \
@@ -111,12 +127,28 @@ jobs:
                     ParameterKey=AvailabilityZones,ParameterValue=${AWS_DEFAULT_REGION}a\\,${AWS_DEFAULT_REGION}c \
                     ParameterKey=NumberOfAZs,ParameterValue=2 \
                     ParameterKey=StartKernelGatewayApps,ParameterValue=NO \
-                    ParameterKey=SeedCodeS3BucketName,ParameterValue=$S3_BUCKET_NAME \
+                    ParameterKey=SeedCodeS3BucketName,ParameterValue=$CIRCLE_PROJECT_REPONAME \
                     ParameterKey=OrganizationalUnitStagingId,ParameterValue=$STAGING_OU_ID \
                     ParameterKey=OrganizationalUnitProdId,ParameterValue=$PROD_OU_ID \
                     ParameterKey=StagingAccountList,ParameterValue=$STAGING_ACCOUNTS \
                     ParameterKey=ProductionAccountList,ParameterValue=$PROD_ACCOUNTS \
                     ParameterKey=SetupStackSetExecutionRoleName,ParameterValue=$SETUP_STACKSET_ROLE_NAME
+            # aws cloudformation deploy \
+            #     --template-file cfn_templates/env-main.yaml \
+            #     --region $AWS_DEFAULT_REGION \
+            #     --stack-name $STACK_NAME \
+            #     --parameter-overrides \
+            #         EnvName=$ENV_NAME \
+            #         EnvType=dev \
+            #         AvailabilityZones=${AWS_DEFAULT_REGION}a\\,${AWS_DEFAULT_REGION}b \
+            #         NumberOfAZs=2 \
+            #         StartKernelGatewayApps=NO \
+            #         SeedCodeS3BucketName=$CIRCLE_PROJECT_REPONAME \
+            #         OrganizationalUnitStagingId=$STAGING_OU_ID \
+            #         OrganizationalUnitProdId=$PROD_OU_ID \
+            #         StagingAccountList=$STAGING_ACCOUNTS \
+            #         ProductionAccountList=$PROD_ACCOUNTS \
+            #         SetupStackSetExecutionRoleName=$SETUP_STACKSET_ROLE_NAME
             aws cloudformation wait stack-create-complete --stack-name $STACK_NAME
           no_output_timeout: 1h
   delete-stack:
@@ -128,20 +160,20 @@ jobs:
     steps:
       - aws-cli/assume_role_with_web_identity:
           role_arn: $AWS_ROLE_ARN
-      # - run:
-      #     name: Remove VPC-only access policy from buckets
-      #     command: |
-      #       aws s3api delete-bucket-policy --bucket $ENV_NAME-dev-${AWS_DEFAULT_REGION}-${AWS_ACCOUNT_ID}-data
-      #       aws s3api delete-bucket-policy --bucket $ENV_NAME-dev-${AWS_DEFAULT_REGION}-${AWS_ACCOUNT_ID}-models
-      # - run:
-      #     name: Delete files in data and models S3 buckets
-      #     command: |
-      #       aws s3 rm s3://$ENV_NAME-dev-$AWS_DEFAULT_REGION-${AWS_ACCOUNT_ID}-data --recursive
-      #       aws s3 rm s3://$ENV_NAME-dev-$AWS_DEFAULT_REGION-${AWS_ACCOUNT_ID}-models --recursive
+      - run:
+          name: Remove VPC-only access policy from buckets
+          command: |
+            aws s3api delete-bucket-policy --bucket $ENV_NAME-dev-${AWS_DEFAULT_REGION}-${AWS_ACCOUNT_ID}-data
+            aws s3api delete-bucket-policy --bucket $ENV_NAME-dev-${AWS_DEFAULT_REGION}-${AWS_ACCOUNT_ID}-models
+      - run:
+          name: Delete files in data and models S3 buckets
+          command: |
+            aws s3 rm s3://$ENV_NAME-dev-$AWS_DEFAULT_REGION-${AWS_ACCOUNT_ID}-data --recursive
+            aws s3 rm s3://$ENV_NAME-dev-$AWS_DEFAULT_REGION-${AWS_ACCOUNT_ID}-models --recursive
       - run:
           name: Delete CloudFormation stacks
           command: |
-            aws cloudformation delete-stack --stack-name cfn-infra
+            # aws cloudformation delete-stack --stack-name cfn-infra
             aws cloudformation delete-stack --stack-name sm-mlops-env
             aws cloudformation delete-stack --stack-name sm-mlops-core 
             # aws cloudformation delete-stack --stack-name sagemaker-mlops-package-cfn
@@ -163,20 +195,20 @@ jobs:
 workflows:
   deploy_infra:
     jobs:
-      # - account-checks:
-      #     context: [aws_default]
+      - account-checks:
+          context: [aws_default]
       - upload-templates:
           context: [aws_default]
-          # requires: [account-checks]
-      # - deploy-core-stack:
-      #     context: [aws_default]
-      #     requires: [upload-templates]
-      # - deploy-ds-stack:
-      #     context: [aws_default]
-      #     requires: [deploy-core-stack]
+          requires: [account-checks]
+      - deploy-core-stack:
+          context: [aws_default]
+          requires: [upload-templates]
+      - deploy-ds-stack:
+          context: [aws_default]
+          requires: [deploy-core-stack]
       - approve-delete:
           type: approval
-          requires: [upload-templates]
+          requires: [deploy-ds-stack]
       - delete-stack:
           context: [aws_default]
           requires: [approve-delete]
