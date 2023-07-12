@@ -77,7 +77,7 @@ jobs:
             aws cloudformation deploy   \
                 --template-file cfn_templates/cfn-s3.yaml   \
                 --stack-name $STACK_NAME  \
-                --parameter-overrides CFNBucketName=$CIRCLE_PROJECT_REPONAME,EnvName=$ENV_NAME \
+                --parameter-overrides CFNBucketName=$CIRCLE_PROJECT_REPONAME EnvName=$ENV_NAME \
                 --region $AWS_DEFAULT_REGION
       - run:
           name: Wait for stack verification
@@ -194,8 +194,8 @@ jobs:
 workflows:
   deploy_infra:
     jobs:
-      - account-checks:
-          context: [aws_default]
+      # - account-checks:
+      #     context: [aws_default]
       - upload-templates:
           context: [aws_default]
           # requires: [account-checks]
