@@ -94,6 +94,7 @@ jobs:
                 --capabilities CAPABILITY_NAMED_IAM \
                 --parameters \
                     ParameterKey=StackSetName,ParameterValue=$STACK_NAME
+            aws cloudformation wait stack-create-complete --stack-name $STACK_NAME
   deploy-ds-stack:
     docker:
       - image: cimg/aws:2023.06
@@ -121,7 +122,7 @@ jobs:
                 --parameters \
                     ParameterKey=EnvName,ParameterValue=$ENV_NAME \
                     ParameterKey=EnvType,ParameterValue=dev \
-                    ParameterKey=AvailabilityZones,ParameterValue=${AWS_DEFAULT_REGION}a\\,${AWS_DEFAULT_REGION}b \
+                    ParameterKey=AvailabilityZones,ParameterValue=${AWS_DEFAULT_REGION}a\\,${AWS_DEFAULT_REGION}c \
                     ParameterKey=NumberOfAZs,ParameterValue=2 \
                     ParameterKey=StartKernelGatewayApps,ParameterValue=NO \
                     ParameterKey=SeedCodeS3BucketName,ParameterValue=$S3_BUCKET_NAME \
@@ -130,6 +131,7 @@ jobs:
                     ParameterKey=StagingAccountList,ParameterValue=$STAGING_ACCOUNTS \
                     ParameterKey=ProductionAccountList,ParameterValue=$PROD_ACCOUNTS \
                     ParameterKey=SetupStackSetExecutionRoleName,ParameterValue=$SETUP_STACKSET_ROLE_NAME
+            aws cloudformation wait stack-create-complete --stack-name $STACK_NAME
   delete-stack:
     docker:
       - image: cimg/aws:2023.06
