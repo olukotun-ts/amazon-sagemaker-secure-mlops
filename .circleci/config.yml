@@ -95,6 +95,7 @@ jobs:
                 --parameters \
                     ParameterKey=StackSetName,ParameterValue=$STACK_NAME
             aws cloudformation wait stack-create-complete --stack-name $STACK_NAME
+          no_output_timeout: 1h
   deploy-ds-stack:
     docker:
       - image: cimg/aws:2023.06
@@ -132,6 +133,7 @@ jobs:
                     ParameterKey=ProductionAccountList,ParameterValue=$PROD_ACCOUNTS \
                     ParameterKey=SetupStackSetExecutionRoleName,ParameterValue=$SETUP_STACKSET_ROLE_NAME
             aws cloudformation wait stack-create-complete --stack-name $STACK_NAME
+          no_output_timeout: 1h
   delete-stack:
     docker:
       - image: cimg/aws:2023.06
@@ -159,6 +161,7 @@ jobs:
             aws cloudformation delete-stack --stack-name sm-mlops-core 
             aws cloudformation wait stack-delete-complete --stack-name sm-mlops-core
             # aws cloudformation delete-stack --stack-name sagemaker-mlops-package-cfn
+          no_output_timeout: 1h
       - run:
           name: (WIP) Delete EFS
           command: |
@@ -181,15 +184,12 @@ workflows:
       - deploy-core-stack:
           context: [aws_default]
           requires: [upload-templates]
-      - approve-ds-deploy:
-          type: approval
-          requires: [deploy-core-stack]
       - deploy-ds-stack:
           context: [aws_default]
-          requires: [approve-ds-deploy]
+          requires: [deploy-core-stack]
       - approve-delete:
           type: approval
-          requires: [deploy-core-stack]
+          requires: [deploy-ds-stack]
       - delete-stack:
           context: [aws_default]
           requires: [approve-delete]
