@@ -66,7 +66,7 @@ jobs:
     resource_class: small
     environment:
       STACK_NAME: cfn-infra
-      ENV_NAME: sm-mlops
+      ENV_NAME: sm-mlops-env
     steps:
       - checkout
       - aws-cli/assume_role_with_web_identity:
@@ -80,9 +80,13 @@ jobs:
                 --parameter-overrides CFNBucketName=$CIRCLE_PROJECT_REPONAME EnvName=$ENV_NAME \
                 --region $AWS_DEFAULT_REGION
       - run:
-          name: Wait for stack verification
+          name: Wait for stack verification -- create
           command: |
-            aws cloudformation wait stack-create-complete --stack-name $STACK_NAME ||
+            aws cloudformation wait stack-create-complete --stack-name $STACK_NAME
+          no_output_timeout: 1h
+      - run:
+          name: Wait for stack verification -- update
+          command: |
             aws cloudformation wait stack-update-complete --stack-name $STACK_NAME
           no_output_timeout: 1h
       - run:
