@@ -40,7 +40,7 @@ jobs:
           name: Deploy CloudFormation template
           command: |
             aws cloudformation deploy   \
-                --template-file cfn_templates/sandbox.yaml   \
+                --template-file cfn_templates/_sandbox.yaml   \
                 --stack-name $STACK_NAME  \
                 --region $AWS_DEFAULT_REGION
           no_output_timeout: 1h
