@@ -47,7 +47,7 @@ jobs:
       - image: cimg/aws:2023.06
     resource_class: small
     environment:
-      STACK_NAME: cfn-infra
+      STACK_NAME: cfn-s3
       ENV_NAME: sm-mlops
     steps:
       - checkout
@@ -173,7 +173,7 @@ jobs:
       - run:
           name: Delete CloudFormation stacks
           command: |
-            # aws cloudformation delete-stack --stack-name cfn-infra
+            # aws cloudformation delete-stack --stack-name cfn-s3
             aws cloudformation delete-stack --stack-name sm-mlops-env
             aws cloudformation delete-stack --stack-name sm-mlops-core 
             # aws cloudformation delete-stack --stack-name sagemaker-mlops-package-cfn

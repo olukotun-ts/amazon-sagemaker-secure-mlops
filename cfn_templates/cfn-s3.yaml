@@ -9,8 +9,6 @@ Outputs:
   CFNBucketName:
     Description: Name of the Amazon S3 bucket for data
     Value: !Ref CFNBucketName
-    Export:
-      Name: !Sub ${EnvName}-${EnvType}-data-bucket-name
 
 Parameters:
   EnvName:
