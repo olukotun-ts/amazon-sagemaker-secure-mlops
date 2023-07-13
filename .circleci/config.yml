@@ -26,196 +26,52 @@ orbs:
   aws-cli: circleci/aws-cli@4.0.0
 
 jobs:
-  # @todo: Add assertions
-  account-checks:
-    docker:
-      - image: cimg/aws:2023.06
-    resource_class: small
-    steps:
-      - aws-cli/assume_role_with_web_identity:
-          role_arn: $AWS_ROLE_ARN
-      - run:
-          name: Check number of SageMaker domains
-          command: |
-            # There is a limit of one SageMaker domain per region per account.
-            aws sagemaker list-domains
-      - run:
-          name: Check number of VPCs
-          command: |
-            # You must have not more than four VPCs to be able to deploy the solution.
-            aws ec2 describe-vpcs
-  upload-templates:
+  deploy-templates:
     docker:
       - image: cimg/aws:2023.06
     resource_class: small
     environment:
-      STACK_NAME: cfn-s3
-      ENV_NAME: sm-mlops
+      STACK_NAME: sandbox
     steps:
       - checkout
       - aws-cli/assume_role_with_web_identity:
           role_arn: $AWS_ROLE_ARN
       - run:
-          name: Create S3 bucket to hold CloudFormation templates
+          name: Deploy CloudFormation template
           command: |
             aws cloudformation deploy   \
-                --template-file cfn_templates/cfn-s3.yaml   \
+                --template-file cfn_templates/sandbox.yaml   \
                 --stack-name $STACK_NAME  \
-                --parameter-overrides CFNBucketName=$CIRCLE_PROJECT_REPONAME EnvName=$ENV_NAME \
                 --region $AWS_DEFAULT_REGION
           no_output_timeout: 1h
-      - run:
-          name: Package and upload templates
-          command: |
-            make package CFN_BUCKET_NAME=$CIRCLE_PROJECT_REPONAME DEPLOYMENT_REGION=$AWS_DEFAULT_REGION
-      - run:
-          name: Verify upload
-          command: aws s3 ls s3://$CIRCLE_PROJECT_REPONAME/sagemaker-mlops/ --recursive
       - run:
           name: List events leading up to failure
           command: aws cloudformation describe-stack-events --stack-name $STACK_NAME
           when: on_fail
-
-  deploy-core-stack:
-    docker:
-      - image: cimg/aws:2023.06
-    resource_class: small
-    environment:
-      STACK_NAME: sm-mlops-core
-    steps:
-      - aws-cli/assume_role_with_web_identity:
-          role_arn: $AWS_ROLE_ARN
-      - run:
-          name: Deploy core infrastructure
-          command: |
-            # aws cloudformation deploy   \
-            #     --template-file cfn_templates/core-main.yaml   \
-            #     --stack-name $STACK_NAME  \
-            #     --parameter-overrides StackSetName=$STACK_NAME  \
-            #     --region $AWS_DEFAULT_REGION
-
-            aws cloudformation create-stack \
-                --template-url https://s3.$AWS_DEFAULT_REGION.amazonaws.com/$CIRCLE_PROJECT_REPONAME/sagemaker-mlops/core-main.yaml \
-                --region $AWS_DEFAULT_REGION \
-                --stack-name $STACK_NAME  \
-                --disable-rollback \
-                --capabilities CAPABILITY_NAMED_IAM \
-                --parameters \
-                    ParameterKey=StackSetName,ParameterValue=$STACK_NAME
-            aws cloudformation wait stack-create-complete --stack-name $STACK_NAME
-          no_output_timeout: 1h
-  deploy-ds-stack:
-    docker:
-      - image: cimg/aws:2023.06
-    resource_class: small
-    environment:
-      STACK_NAME: sm-mlops-env
-      ENV_NAME: sm-mlops
-      STAGING_OU_ID: ""
-      PROD_OU_ID: ""
-      STAGING_ACCOUNTS: ""
-      PROD_ACCOUNTS: ""
-      SETUP_STACKSET_ROLE_NAME: $ENV_NAME-setup-stackset-execution-role
-    steps:
-      - aws-cli/assume_role_with_web_identity:
-          role_arn: $AWS_ROLE_ARN
-      - run:
-          name: Deploy data science environment
-          command: |
-            aws cloudformation create-stack \
-                --template-url https://s3.$AWS_DEFAULT_REGION.amazonaws.com/$CIRCLE_PROJECT_REPONAME/sagemaker-mlops/env-main.yaml \
-                --region $AWS_DEFAULT_REGION \
-                --stack-name $STACK_NAME \
-                --disable-rollback \
-                --capabilities CAPABILITY_NAMED_IAM \
-                --parameters \
-                    ParameterKey=EnvName,ParameterValue=$ENV_NAME \
-                    ParameterKey=EnvType,ParameterValue=dev \
-                    ParameterKey=AvailabilityZones,ParameterValue=${AWS_DEFAULT_REGION}a\\,${AWS_DEFAULT_REGION}c \
-                    ParameterKey=NumberOfAZs,ParameterValue=2 \
-                    ParameterKey=StartKernelGatewayApps,ParameterValue=NO \
-                    ParameterKey=SeedCodeS3BucketName,ParameterValue=$CIRCLE_PROJECT_REPONAME \
-                    ParameterKey=OrganizationalUnitStagingId,ParameterValue=$STAGING_OU_ID \
-                    ParameterKey=OrganizationalUnitProdId,ParameterValue=$PROD_OU_ID \
-                    ParameterKey=StagingAccountList,ParameterValue=$STAGING_ACCOUNTS \
-                    ParameterKey=ProductionAccountList,ParameterValue=$PROD_ACCOUNTS \
-                    ParameterKey=SetupStackSetExecutionRoleName,ParameterValue=$SETUP_STACKSET_ROLE_NAME
-            # aws cloudformation deploy \
-            #     --template-file cfn_templates/env-main.yaml \
-            #     --region $AWS_DEFAULT_REGION \
-            #     --stack-name $STACK_NAME \
-            #     --parameter-overrides \
-            #         EnvName=$ENV_NAME \
-            #         EnvType=dev \
-            #         AvailabilityZones=${AWS_DEFAULT_REGION}a\\,${AWS_DEFAULT_REGION}b \
-            #         NumberOfAZs=2 \
-            #         StartKernelGatewayApps=NO \
-            #         SeedCodeS3BucketName=$CIRCLE_PROJECT_REPONAME \
-            #         OrganizationalUnitStagingId=$STAGING_OU_ID \
-            #         OrganizationalUnitProdId=$PROD_OU_ID \
-            #         StagingAccountList=$STAGING_ACCOUNTS \
-            #         ProductionAccountList=$PROD_ACCOUNTS \
-            #         SetupStackSetExecutionRoleName=$SETUP_STACKSET_ROLE_NAME
-            aws cloudformation wait stack-create-complete --stack-name $STACK_NAME
-          no_output_timeout: 1h
   delete-stack:
     docker:
       - image: cimg/aws:2023.06
     resource_class: small
     environment:
-      ENV_NAME: sm-mlops
+      STACK_NAME: sandbox
     steps:
       - aws-cli/assume_role_with_web_identity:
           role_arn: $AWS_ROLE_ARN
       - run:
-          name: Remove VPC-only access policy from buckets
-          command: |
-            aws s3api delete-bucket-policy --bucket $ENV_NAME-dev-${AWS_DEFAULT_REGION}-${AWS_ACCOUNT_ID}-data
-            aws s3api delete-bucket-policy --bucket $ENV_NAME-dev-${AWS_DEFAULT_REGION}-${AWS_ACCOUNT_ID}-models
-      - run:
-          name: Delete files in data and models S3 buckets
-          command: |
-            aws s3 rm s3://$ENV_NAME-dev-$AWS_DEFAULT_REGION-${AWS_ACCOUNT_ID}-data --recursive
-            aws s3 rm s3://$ENV_NAME-dev-$AWS_DEFAULT_REGION-${AWS_ACCOUNT_ID}-models --recursive
-      - run:
           name: Delete CloudFormation stacks
           command: |
-            # aws cloudformation delete-stack --stack-name cfn-s3
-            aws cloudformation delete-stack --stack-name sm-mlops-env
-            aws cloudformation delete-stack --stack-name sm-mlops-core 
-            # aws cloudformation delete-stack --stack-name sagemaker-mlops-package-cfn
-
-            # aws cloudformation wait stack-delete-complete --stack-name sm-mlops-env
-            # aws cloudformation wait stack-delete-complete --stack-name sm-mlops-core
+            aws cloudformation delete-stack --stack-name $STACK_NAME
+            aws cloudformation wait stack-delete-complete --stack-name $STACK_NAME
           no_output_timeout: 1h
-      - run:
-          name: (WIP) Delete EFS
-          command: |
-            # List SageMaker domain IDs for all EFS with SageMaker tag
-            aws efs describe-file-systems \
-              --query 'FileSystems[].Tags[?Key==`ManagedByAmazonSageMakerResource`].Value[]'
-            
-      #       # Delete the EFS
-      #       SM_DOMAIN_ID=#SageMaker domain id
-      #       pipenv run python3 functions/pipeline/clean-up-efs-cli.py $SM_DOMAIN_ID
 
 workflows:
   deploy_infra:
     jobs:
-      - account-checks:
+      - deploy-templates:
           context: [aws_default]
-      - upload-templates:
-          context: [aws_default]
-          requires: [account-checks]
-      - deploy-core-stack:
-          context: [aws_default]
-          requires: [upload-templates]
-      - deploy-ds-stack:
-          context: [aws_default]
-          requires: [deploy-core-stack]
       - approve-delete:
           type: approval
-          requires: [deploy-ds-stack]
+          requires: [deploy-templates]
       - delete-stack:
           context: [aws_default]
           requires: [approve-delete]
