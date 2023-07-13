@@ -14,9 +14,11 @@
       # - Why do created roles stay in account after stack deletion?
           # - delete as part of teardown
     # - Create dev IAM user
+    # - For jobs that deploy cfn templates, rollback or delete deployed pieces on fail
     # - Security scan for CloudFormation templates
     #     - AWS CloudFormation Guard: https://docs.aws.amazon.com/cfn-guard/latest/ug/what-is-guard.html
     #     - Snyk: https://snyk.io/blog/scan-aws-cloudformation-misconfigurations-snyk-iac/
+    # - Install runner with cfn
           
 version: 2.1
 
@@ -69,6 +71,11 @@ jobs:
       - run:
           name: Verify upload
           command: aws s3 ls s3://$CIRCLE_PROJECT_REPONAME/sagemaker-mlops/ --recursive
+      - run:
+          name: List events leading up to failure
+          command: aws cloudformation describe-stack-events --stack-name $STACK_NAME
+          when: on_fail
+
   deploy-core-stack:
     docker:
       - image: cimg/aws:2023.06
