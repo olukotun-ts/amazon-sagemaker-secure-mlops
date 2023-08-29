@@ -19,6 +19,11 @@
     #     - AWS CloudFormation Guard: https://docs.aws.amazon.com/cfn-guard/latest/ug/what-is-guard.html
     #     - Snyk: https://snyk.io/blog/scan-aws-cloudformation-misconfigurations-snyk-iac/
     # - Install runner with cfn
+    # - Create ssh key pair with cfn for CodeCommit - Sagemaker
+    # - Update docs
+    #     - How to provision a new project
+    #          - outdated: https://github.com/olukotun-ts/amazon-sagemaker-secure-mlops/blob/master/documentation/mlops.md#how-to-provision-a-new-project
+    #          - update: https://docs.aws.amazon.com/sagemaker/latest/dg/sagemaker-projects-create.html
           
 version: 2.1
 
